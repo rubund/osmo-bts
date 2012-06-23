@@ -38,6 +38,7 @@
 #include <osmo-bts/oml.h>
 #include <osmo-bts/bts_model.h>
 #include <osmo-bts/bts.h>
+#include <osmo-bts/pcu_if.h>
 
 /* FIXME: move this to libosmocore */
 static struct tlv_definition abis_nm_att_tlvdef_ipa = {
@@ -246,6 +247,7 @@ int oml_mo_state_chg(struct gsm_abis_mo *mo, int op_state, int avail_state)
 				abis_nm_opstate_name(mo->nm_state.operational),
 				abis_nm_opstate_name(op_state));
 			mo->nm_state.operational = op_state;
+			pcu_tx_info_ind();
 		}
 
 		/* send state change report */

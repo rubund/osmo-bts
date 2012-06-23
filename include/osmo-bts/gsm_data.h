@@ -7,9 +7,12 @@
 
 #include <osmo-bts/paging.h>
 
+struct pcu_sock_state;
+
 struct gsm_network {
 	struct llist_head bts_list;
 	unsigned int num_bts;
+	struct pcu_sock_state *pcu_state;
 };
 
 /* data structure for BTS related data specific to the BTS role */

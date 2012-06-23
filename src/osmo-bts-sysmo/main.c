@@ -43,6 +43,7 @@
 #include <osmo-bts/bts.h>
 #include <osmo-bts/vty.h>
 #include <osmo-bts/bts_model.h>
+#include <osmo-bts/pcu_if.h>
 
 #define SYSMOBTS_RF_LOCK_PATH	"/var/lock/bts_rf_lock"
 
@@ -107,6 +108,7 @@ static void print_help()
 		"  -e 	--log-level	Set a global log-level\n"
 		"  -p	--dsp-trace	Set DSP trace flags\n"
 		"  -w	--hw-version	Print the targeted HW Version\n"
+		"  -P	--pcu		Enable PCU L1 socket interface\n"
 		);
 }
 
@@ -136,10 +138,11 @@ static void handle_options(int argc, char **argv)
 			{ "log-level", 1, 0, 'e' },
 			{ "dsp-trace", 1, 0, 'p' },
 			{ "hw-version", 0, 0, 'w' },
+			{ "pcu", 0, 0, 'P' },
 			{ 0, 0, 0, 0 }
 		};
 
-		c = getopt_long(argc, argv, "hc:d:Dc:sTVe:p:w",
+		c = getopt_long(argc, argv, "hc:d:Dc:sTVe:p:w:P",
 				long_options, &option_idx);
 		if (c == -1)
 			break;
@@ -163,6 +166,12 @@ static void handle_options(int argc, char **argv)
 			break;
 		case 'T':
 			log_set_print_timestamp(osmo_stderr_target, 1);
+			break;
+		case 'P':
+			if (pcu_sock_init()) {
+				fprintf(stderr, "PCU L1 socket failed\n");
+				exit(-1);
+			}
 			break;
 		case 'V':
 			print_version(1);

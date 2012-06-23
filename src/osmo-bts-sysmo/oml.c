@@ -402,11 +402,11 @@ static const struct sapi_dir sdcch_sapis[] = {
 static const struct sapi_dir pdtch_sapis[] = {
 	{ GsmL1_Sapi_Pdtch,	GsmL1_Dir_TxDownlink },
 	{ GsmL1_Sapi_Pdtch,	GsmL1_Dir_RxUplink },
-#if 0
 	{ GsmL1_Sapi_Ptcch,	GsmL1_Dir_TxDownlink },
+	{ GsmL1_Sapi_Prach,	GsmL1_Dir_RxUplink },
+#if 0
 	{ GsmL1_Sapi_Ptcch,	GsmL1_Dir_RxUplink },
 	{ GsmL1_Sapi_Pacch,	GsmL1_Dir_TxDownlink },
-	{ GsmL1_Sapi_Prach,	GsmL1_Dir_RxUplink },
 #endif
 };
 
