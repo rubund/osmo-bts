@@ -691,12 +691,16 @@ static int handle_ph_data_ind(struct femtol1_hdl *fl1, GsmL1_PhDataInd_t *data_i
 		break;
 	case GsmL1_Sapi_Pdtch:
 	case GsmL1_Sapi_Pacch:
+		/* drop incomplete UL block */
+		if (data_ind->msgUnitParam.u8Buffer[0]
+			!= GsmL1_PdtchPlType_Full)
+			break;
 		/* PDTCH / PACCH frame handling */
 		rc = pcu_tx_data_ind(&trx->ts[data_ind->u8Tn], 0,
 			data_ind->u32Fn, data_ind->u16Arfcn,
 			data_ind->u8BlockNbr,
-			data_ind->msgUnitParam.u8Buffer,
-			data_ind->msgUnitParam.u8Size);
+			data_ind->msgUnitParam.u8Buffer + 1,
+			data_ind->msgUnitParam.u8Size - 1);
 		break;
 	case GsmL1_Sapi_Ptcch:
 		/* PTCCH frame handling */
