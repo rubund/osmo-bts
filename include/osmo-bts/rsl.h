@@ -21,5 +21,7 @@ int rsl_tx_ccch_load_ind_rach(struct gsm_bts *bts, uint16_t total,
 
 struct gsm_lchan *rsl_lchan_lookup(struct gsm_bts_trx *trx, uint8_t chan_nr);
 
+int rsl_add_paging_cmd(struct gsm_bts_trx *trx, uint8_t *data, int len);
+
 #endif // _RSL_H */
 

@@ -371,20 +371,18 @@ int rsl_tx_ccch_load_ind_rach(struct gsm_bts *bts, uint16_t total,
 	return abis_rsl_sendmsg(msg);
 }
 
-/* 8.5.5 PAGING COMMAND */
-static int rsl_rx_paging_cmd(struct gsm_bts_trx *trx, struct msgb *msg)
+int rsl_add_paging_cmd(struct gsm_bts_trx *trx, uint8_t *data, int len)
 {
 	struct gsm_bts_role_bts *btsb = trx->bts->role;
 	struct tlv_parsed tp;
 	uint8_t chan_needed = 0, paging_group;
 	const uint8_t *identity_lv;
-	int rc;
 
-	rsl_tlv_parse(&tp, msgb_l3(msg), msgb_l3len(msg));
+	rsl_tlv_parse(&tp, data, len);
 
 	if (!TLVP_PRESENT(&tp, RSL_IE_PAGING_GROUP) ||
 	    !TLVP_PRESENT(&tp, RSL_IE_MS_IDENTITY))
-		return rsl_tx_error_report(trx, RSL_ERR_MAND_IE_ERROR);
+	    	return -EINVAL;
 
 	paging_group = *TLVP_VAL(&tp, RSL_IE_PAGING_GROUP);
 	identity_lv = TLVP_VAL(&tp, RSL_IE_MS_IDENTITY)-1;
@@ -392,12 +390,22 @@ static int rsl_rx_paging_cmd(struct gsm_bts_trx *trx, struct msgb *msg)
 	if (TLVP_PRESENT(&tp, RSL_IE_CHAN_NEEDED))
 		chan_needed = *TLVP_VAL(&tp, RSL_IE_CHAN_NEEDED);
 
-	rc = paging_add_identity(btsb->paging_state, paging_group,
+	return  paging_add_identity(btsb->paging_state, paging_group,
 				 identity_lv, chan_needed);
+
+}
+
+/* 8.5.5 PAGING COMMAND */
+static int rsl_rx_paging_cmd(struct gsm_bts_trx *trx, struct msgb *msg)
+{
+	int rc;
+
+	rc = rsl_add_paging_cmd(trx, msgb_l3(msg), msgb_l3len(msg));
+	if (rc == -EINVAL)
+		return rsl_tx_error_report(trx, RSL_ERR_MAND_IE_ERROR);
 	if (rc < 0) {
 		/* FIXME: notfiy the BSC somehow ?*/
 	}
-
 	return 0;
 }
 
