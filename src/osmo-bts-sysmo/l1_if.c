@@ -42,6 +42,7 @@
 #include <osmo-bts/logging.h>
 #include <osmo-bts/bts.h>
 #include <osmo-bts/oml.h>
+#include <osmo-bts/rsl.h>
 #include <osmo-bts/gsm_data.h>
 #include <osmo-bts/paging.h>
 #include <osmo-bts/measurement.h>
@@ -298,19 +299,6 @@ empty_req_from_rts_ind(GsmL1_Prim_t *l1p,
 	empty_req->u8BlockNbr = rts_ind->u8BlockNbr;
 
 	return empty_req;
-}
-
-/* obtain a ptr to the lapdm_channel for a given hLayer2 */
-static struct lapdm_channel *
-get_lapdm_chan_by_hl2(struct gsm_bts_trx *trx, uint32_t hLayer2)
-{
-	struct gsm_lchan *lchan;
-
-	lchan = l1if_hLayer2_to_lchan(trx, hLayer2);
-	if (!lchan)
-		return NULL;
-
-	return &lchan->lapdm_ch;
 }
 
 /* check if the message is a GSM48_MT_RR_CIPH_M_CMD, and if yes, enable
@@ -746,64 +734,139 @@ static int handle_ph_data_ind(struct femtol1_hdl *fl1, GsmL1_PhDataInd_t *data_i
 	return rc;
 }
 
+static uint8_t timing2acc_delay(int16_t burst_timing)
+{
+	/* check for under/overflow / sign */
+	if (burst_timing <= 0 || burst_timing > 63 * 4)
+		return 0;
+	else
+		return burst_timing >> 2;
+}
+
+/* Transmit a hoandover related PHYS INFO on given lchan */
+static int ho_tx_phys_info(struct gsm_lchan *lchan, uint8_t ta)
+{
+	struct msgb *msg = msgb_alloc_headroom(1024, 128, "PHYS INFO");
+	struct gsm48_hdr *gh;
+
+	if (!msg)
+		return -ENOMEM;
+
+	/* Build RSL UNITDATA REQUEST message with 04.08 PHYS INFO */
+	gh = (struct gsm48_hdr *) msgb_put(msg, sizeof(*gh));
+	gh->proto_discr = GSM48_PDISC_RR;
+	gh->msg_type = GSM48_MT_RR_HANDO_INFO;
+	msgb_put_u8(msg, ta);
+
+	rsl_rll_push_l3(msg, RSL_MT_UNIT_DATA_REQ, 0, 0, 0);
+
+	return lapdm_rslms_recvmsg(msg, &lchan->lapdm_ch);
+}
+
+/* timer call-back for T3105 (handover PHYS INFO re-transmit) */
+static void ho_t3105_cb(void *data)
+{
+	struct gsm_lchan *lchan = data;
+	struct gsm_bts *bts = lchan->ts->trx->bts;
+	struct gsm_bts_role_bts *btsb = bts->role;
+
+	if (lchan->ho.phys_info_count >= btsb->ny1) {
+		/* FIXME: HO Abort */
+		return;
+	}
+
+	ho_tx_phys_info(lchan, FIXME);
+	lchan->ho.phys_info_count++;
+	osmo_timer_schedule(&lchan->ho.t3105, 0, btsb->t3105_ms*10);
+}
+
 
 static int handle_ph_ra_ind(struct femtol1_hdl *fl1, GsmL1_PhRaInd_t *ra_ind)
 {
 	struct gsm_bts_trx *trx = fl1->priv;
 	struct gsm_bts *bts = trx->bts;
 	struct gsm_bts_role_bts *btsb = bts->role;
-	struct osmo_phsap_prim pp;
+	struct gsm_lchan *lchan;
 	struct lapdm_channel *lc;
 	uint8_t acc_delay;
+	int rc = 0;
 
-	/* increment number of busy RACH slots, if required */
-	if (trx == bts->c0 &&
-	    ra_ind->measParam.fRssi >= btsb->load.rach.busy_thresh)
-		btsb->load.rach.busy++;
-
-	if (ra_ind->measParam.fLinkQuality < MIN_QUAL_RACH)
-		return 0;
-
-	/* increment number of RACH slots with valid RACH burst */
-	if (trx == bts->c0)
-		btsb->load.rach.access++;
-
-	DEBUGP(DL1C, "Rx PH-RA.ind");
-	dump_meas_res(LOGL_DEBUG, &ra_ind->measParam);
-
-	lc = get_lapdm_chan_by_hl2(fl1->priv, ra_ind->hLayer2);
-	if (!lc) {
-		LOGP(DL1C, LOGL_ERROR, "unable to resolve LAPD channel by hLayer2\n");
+	lchan = l1if_hLayer2_to_lchan(fl1->priv, ra_ind->hLayer2);
+	if (!lchan) {
+		LOGP(DL1C, LOGL_ERROR, "unable to resolve lchan by hLayer2\n");
 		return -ENODEV;
 	}
+	lc = &lchan->lapdm_ch;
 
-	/* check for under/overflow / sign */
-	if (ra_ind->measParam.i16BurstTiming < 0)
-		acc_delay = 0;
-	else
-		acc_delay = ra_ind->measParam.i16BurstTiming >> 2;
-	if (acc_delay > btsb->max_ta) {
-		LOGP(DL1C, LOGL_INFO, "ignoring RACH request %u > max_ta(%u)\n",
-		     acc_delay, btsb->max_ta);
-		return 0;
+	acc_delay = timing2acc_delay(ra_ind->measParam.i16BurstTiming);
+
+	if (lchan->type != GSM_LCHAN_CCCH) {
+		/* this is handover related RACH detection on TCH;
+		 * generate HANDOver DETected instead of CHAN_RQD and
+		 * (in async case) send PHY INFO on main signalling
+		 * channel to MS (+T3105) */
+
+		if (ra_ind->msgUnitParam.u8Buffer[0] == lchan->ho.ref)
+			rsl_tx_hando_det(lchan, &acc_delay);
+		else {
+			/* FIXME: do we actually want to send this if
+			 * the handover reference is not valid? */
+			rsl_tx_hando_det(lchan, NULL);
+		}
+		/* FIXME: deactivate RACH; activate SDCCH RxUl, activate
+		 * SACCH RxUl, activate SACCH TxDl if not activated yet */
+
+		/* start sending PHYSical INFormation */
+		lchan->ho.phys_info_count = 1;
+		ho_tx_phys_info(lchan, acc_delay);
+
+		/* start T3105 */
+		lchan->ho.t3105.cb = ho_t3105_cb;
+		lchan->ho.t3105.data = lchan;
+		osmo_timer_schedule(&lchan->ho.t3105, 0, btsb->t3105_ms*10);
+	} else {
+		struct osmo_phsap_prim pp;
+		/* increment number of busy RACH slots, if required */
+		if (trx == bts->c0 &&
+		    ra_ind->measParam.fRssi >= btsb->load.rach.busy_thresh)
+			btsb->load.rach.busy++;
+
+		if (ra_ind->measParam.fLinkQuality < MIN_QUAL_RACH)
+			return 0;
+
+		/* increment number of RACH slots with valid RACH burst */
+		if (trx == bts->c0)
+			btsb->load.rach.access++;
+
+		DEBUGP(DL1C, "Rx PH-RA.ind");
+		dump_meas_res(LOGL_DEBUG, &ra_ind->measParam);
+
+		/* check for packet access */
+		if (trx == bts->c0
+		 && (ra_ind->msgUnitParam.u8Buffer[0] & 0xf0) == 0x70) {
+			LOGP(DL1C, LOGL_INFO, "RACH for packet access\n");
+			return pcu_tx_rach_ind(bts, ra_ind->measParam.i16BurstTiming,
+				ra_ind->msgUnitParam.u8Buffer[0], ra_ind->u32Fn);
+		}
+
+		osmo_prim_init(&pp.oph, SAP_GSM_PH, PRIM_PH_RACH,
+				PRIM_OP_INDICATION, NULL);
+
+		pp.u.rach_ind.ra = ra_ind->msgUnitParam.u8Buffer[0];
+		pp.u.rach_ind.fn = ra_ind->u32Fn;
+		pp.u.rach_ind.acc_delay = acc_delay;
+
+		if (pp.u.rach_ind.acc_delay > btsb->max_ta) {
+			LOGP(DL1C, LOGL_INFO, "ignoring RACH request: "
+			     "%u > max_ta(%u)\n", pp.u.rach_ind.acc_delay,
+			     btsb->max_ta);
+			return 0;
+		}
+
+		rc = lapdm_phsap_up(&pp.oph, &lc->lapdm_dcch);
 	}
 
-	/* check for packet access */
-	if (trx == bts->c0
-	 && (ra_ind->msgUnitParam.u8Buffer[0] & 0xf0) == 0x70) {
-		LOGP(DL1C, LOGL_INFO, "RACH for packet access\n");
-		return pcu_tx_rach_ind(bts, ra_ind->measParam.i16BurstTiming,
-			ra_ind->msgUnitParam.u8Buffer[0], ra_ind->u32Fn);
-	}
-
-	osmo_prim_init(&pp.oph, SAP_GSM_PH, PRIM_PH_RACH,
-			PRIM_OP_INDICATION, NULL);
-
-	pp.u.rach_ind.ra = ra_ind->msgUnitParam.u8Buffer[0];
-	pp.u.rach_ind.fn = ra_ind->u32Fn;
-	pp.u.rach_ind.acc_delay = acc_delay;
-
-	return lapdm_phsap_up(&pp.oph, &lc->lapdm_dcch);
+	return rc;
 }
 
 /* handle any random indication from the L1 */

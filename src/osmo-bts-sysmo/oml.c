@@ -443,6 +443,15 @@ static const struct lchan_sapis sapis_for_lchan[_GSM_LCHAN_MAX] = {
 	},
 };
 
+static const struct sapi_dir, ho_sapis[] = {
+	{ GsmL1_Sapi_Rach,	GsmL1_Dir_RxUplink },
+};
+
+static const struct lchan_sapis sapis_for_ho = {
+	.sapis = ho_sapis,
+	.num_sapis = ARRAY_SIZE(ho_sapis),
+};
+
 static int lchan_act_compl_cb(struct msgb *l1_msg, void *data)
 {
 	struct gsm_time *time;
@@ -644,10 +653,26 @@ int lchan_activate(struct gsm_lchan *lchan)
 	const struct lchan_sapis *s4l = &sapis_for_lchan[lchan->type];
 	unsigned int i;
 
+	/* override the regular SAPIs if this is the first hand-over
+	 * related activation of the LCHAN */
+	if (lchan->ho.active == 1)
+		s4l = &sapis_for_ho;
+
 	for (i = 0; i < s4l->num_sapis; i++) {
 		struct msgb *msg = l1p_msgb_alloc();
 		GsmL1_MphActivateReq_t *act_req;
 		GsmL1_LogChParam_t *lch_par;
+
+		if (lchan->ho.active) {
+			/* TS 08.58, 4.1.3 / 4.1.4 */
+			/* Handover: Do not activate Rx at all! */
+			if (s4l->sapis[i].dir == GsmL1_Dir_RxUplink)
+				continue;
+			/* Handover: SACCH only if MS Power present */
+			if (s4l->sapis[i].sapi == GsmL1_Sapi_Sacch &&
+			    !lchan->ms_power)
+				continue;
+		}
 
 		act_req = prim_init(msgb_l1prim(msg), GsmL1_PrimId_MphActivateReq, fl1h);
 		lch_par = &act_req->logChPrm;
@@ -958,9 +983,26 @@ int lchan_deactivate(struct gsm_lchan *lchan)
 	const struct lchan_sapis *s4l = &sapis_for_lchan[lchan->type];
 	int i;
 
+	/* FIXME: if this is HO, and we deactivate the channel before
+	 * ever receiving RACH (and thus deactivating RACH), RACH i
+	 * still active and needs to be deactivated */
+	if (lchan->ho.active == 1)
+		FIXME;
+
 	for (i = s4l->num_sapis-1; i >= 0; i--) {
 		struct msgb *msg;
 		GsmL1_MphDeactivateReq_t *deact_req;
+
+		if (lchan->ho.active) {
+			/* TS 08.58, 4.1.3 / 4.1.4 */
+			/* Handover: Do not activate Rx at all! */
+			if (s4l->sapis[i].dir == GsmL1_Dir_RxUplink)
+				continue;
+			/* Handover: SACCH only if MS Power present */
+			if (s4l->sapis[i].sapi == GsmL1_Sapi_Sacch &&
+			    !lchan->ms_power)
+				continue;
+		}
 
 		if (s4l->sapis[i].sapi == GsmL1_Sapi_Sacch && lchan->sacch_deact) {
 			LOGP(DL1C, LOGL_INFO, "%s SACCH already deactivated.\n",
