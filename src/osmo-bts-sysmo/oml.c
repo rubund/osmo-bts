@@ -674,6 +674,19 @@ int lchan_activate(struct gsm_lchan *lchan)
 		case GsmL1_Sapi_TchF:
 			lchan2lch_par(lch_par, lchan);
 			break;
+		case GsmL1_Sapi_Ptcch:
+			lch_par->ptcch.u8Bsic = lchan->ts->trx->bts->bsic;
+			break;
+		case GsmL1_Sapi_Prach:
+			lch_par->prach.u8Bsic = lchan->ts->trx->bts->bsic;
+			break;
+		case GsmL1_Sapi_Pdtch:
+		case GsmL1_Sapi_Pacch:
+			/* Be sure that every packet is received, even if it
+			 * fails. In this case the length might be lower or 0.
+			 */
+			act_req->fBFILevel = -200.0;
+			break;
 		default:
 			break;
 		}
