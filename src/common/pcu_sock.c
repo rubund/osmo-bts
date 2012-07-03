@@ -236,6 +236,28 @@ int pcu_tx_rach_ind(struct gsm_bts *bts, int16_t qta, uint8_t ra, uint32_t fn)
 	return pcu_sock_send(&bts_gsmnet, msg);
 }
 
+int pcu_tx_time_ind(uint32_t fn)
+{
+	struct msgb *msg;
+	struct gsm_pcu_if *pcu_prim;
+	struct gsm_pcu_if_time_ind *time_ind;
+	uint8_t fn13 = fn % 13;
+
+	/* omit frame numbers not starting at a MAC block */
+	if (fn13 != 0 && fn13 != 4 && fn13 != 8)
+		return 0;
+
+	msg = pcu_msgb_alloc(PCU_IF_MSG_TIME_IND, 0);
+	if (!msg)
+		return -ENOMEM;
+	pcu_prim = (struct gsm_pcu_if *) msg->data;
+	time_ind = &pcu_prim->u.time_ind;
+
+	time_ind->fn = fn;
+
+	return pcu_sock_send(&bts_gsmnet, msg);
+}
+
 static int pcu_rx_data_req(struct gsm_bts *bts,
 	struct gsm_pcu_if_data *data_req)
 {
@@ -305,7 +327,7 @@ static int pcu_rx_act_req(struct gsm_bts *bts,
 	struct gsm_bts_trx *trx;
 	struct gsm_lchan *lchan;
 
-	LOGP(DPCU, LOGL_INFO, "%s request received: TRX=%d TX=%d ", 
+	LOGP(DPCU, LOGL_INFO, "%s request received: TRX=%d TX=%d\n", 
 		(act_req->activate) ? "Activate" : "Deactivate",
 		act_req->trx_nr, act_req->ts_nr);
 
@@ -315,7 +337,7 @@ static int pcu_rx_act_req(struct gsm_bts *bts,
 
 	lchan = trx->ts[act_req->ts_nr].lchan;
 	if (lchan->type != GSM_LCHAN_PDTCH) {
-		LOGP(DPCU, LOGL_ERROR, "Lchan is not of type PDCH, but %d.",
+		LOGP(DPCU, LOGL_ERROR, "Lchan is not of type PDCH, but %d.\n",
 			lchan->type);
 		return -EINVAL;
 	}
@@ -367,16 +389,19 @@ static int pcu_sock_send(struct gsm_network *net, struct msgb *msg)
 {
 	struct pcu_sock_state *state = net->pcu_state;
 	struct osmo_fd *conn_bfd;
+	struct gsm_pcu_if *pcu_prim = (struct gsm_pcu_if *) msg->data;
 
 	if (!state) {
-		LOGP(DPCU, LOGL_NOTICE, "PCU socket not created, dropping "
-			"message\n");
+		if (pcu_prim->msg_type != PCU_IF_MSG_TIME_IND)
+			LOGP(DPCU, LOGL_NOTICE, "PCU socket not created, "
+				"dropping message\n");
 		return -EINVAL;
 	}
 	conn_bfd = &state->conn_bfd;
 	if (conn_bfd->fd <= 0) {
-		LOGP(DPCU, LOGL_NOTICE, "PCU socket not connected, dropping "
-			"message\n");
+		if (pcu_prim->msg_type != PCU_IF_MSG_TIME_IND)
+			LOGP(DPCU, LOGL_NOTICE, "PCU socket not connected, "
+				"dropping message\n");
 		return -EIO;
 	}
 	msgb_enqueue(&state->upqueue, msg);

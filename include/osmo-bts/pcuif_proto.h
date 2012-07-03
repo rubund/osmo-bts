@@ -8,6 +8,7 @@
 #define PCU_IF_MSG_RACH_IND	0x22	/* receive rach */
 #define PCU_IF_MSG_INFO_IND	0x32	/* retrieve BTS info */
 #define PCU_IF_MSG_ACT_REQ	0x40	/* activate/deactivate PDCH */
+#define PCU_IF_MSG_TIME_IND	0x52	/* gsm time indication */
 
 /* sapi */
 #define PCU_IF_SAPI_RACH	0x01	/* channel request on CCCH */
@@ -70,6 +71,10 @@ struct gsm_pcu_if_act_req {
 	uint8_t		spare;
 } __attribute__ ((packed));
 
+struct gsm_pcu_if_time_ind {
+	uint32_t	fn;
+} __attribute__ ((packed));
+
 struct gsm_pcu_if {
 	/* context based information */
 	uint8_t		msg_type;	/* message type */
@@ -83,6 +88,7 @@ struct gsm_pcu_if {
 		struct gsm_pcu_if_rach_ind	rach_ind;
 		struct gsm_pcu_if_info_ind	info_ind;
 		struct gsm_pcu_if_act_req	act_req;
+		struct gsm_pcu_if_time_ind	time_ind;
 	} u;
 } __attribute__ ((packed));
 

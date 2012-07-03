@@ -545,6 +545,9 @@ static int handle_mph_time_ind(struct femtol1_hdl *fl1,
 
 	int frames_expired = time_ind->u32Fn - fl1->gsm_time.fn;
 
+	/* update time on pcu interface */
+	pcu_tx_time_ind(time_ind->u32Fn);
+
 	/* Update our data structures with the current GSM time */
 	gsm_fn2gsmtime(&fl1->gsm_time, time_ind->u32Fn);
 
