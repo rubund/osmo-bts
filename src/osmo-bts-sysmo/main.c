@@ -51,6 +51,7 @@
 
 /* FIXME: read from real hardware */
 const uint8_t abis_mac[6] = { 0,1,2,3,4,5 };
+int gprs_enabled = 0;
 
 static const char *config_file = "osmo-bts.cfg";
 static int daemonize = 0;
@@ -172,6 +173,7 @@ static void handle_options(int argc, char **argv)
 				fprintf(stderr, "PCU L1 socket failed\n");
 				exit(-1);
 			}
+			gprs_enabled = 1;
 			break;
 		case 'V':
 			print_version(1);
