@@ -22,6 +22,19 @@
 /* flags */
 #define PCU_IF_FLAG_ACTIVE	(1 << 0)/* BTS is active */
 #define PCU_IF_FLAG_SYSMO	(1 << 1)/* access PDCH of sysmoBTS directly */
+#define PCU_IF_FLAG_CS1		(1 << 16)
+#define PCU_IF_FLAG_CS2		(1 << 17)
+#define PCU_IF_FLAG_CS3		(1 << 18)
+#define PCU_IF_FLAG_CS4		(1 << 19)
+#define PCU_IF_FLAG_MCS1	(1 << 20)
+#define PCU_IF_FLAG_MCS2	(1 << 21)
+#define PCU_IF_FLAG_MCS3	(1 << 22)
+#define PCU_IF_FLAG_MCS4	(1 << 23)
+#define PCU_IF_FLAG_MCS5	(1 << 24)
+#define PCU_IF_FLAG_MCS6	(1 << 25)
+#define PCU_IF_FLAG_MCS7	(1 << 26)
+#define PCU_IF_FLAG_MCS8	(1 << 27)
+#define PCU_IF_FLAG_MCS9	(1 << 28)
 
 struct gsm_pcu_if_data {
 	uint8_t		sapi;
@@ -62,6 +75,35 @@ struct gsm_pcu_if_info_trx {
 struct gsm_pcu_if_info_ind {
 	uint32_t	flags;
 	struct gsm_pcu_if_info_trx trx[8];	/* TRX infos per BTS */
+	/* RAI */
+	uint16_t	mcc, mnc, lac, rac;
+	/* NSE */
+	uint16_t	nsei;
+	uint8_t		nse_timer[7];
+	uint8_t		cell_timer[11];
+	/* cell  */
+	uint16_t	cell_id;
+	uint16_t	repeat_time;
+	uint8_t		repeat_count;
+	uint16_t	bvci;
+	uint8_t		t3142;
+	uint8_t		t3169;
+	uint8_t		t3191;
+	uint8_t		t3193_10ms;
+	uint8_t		t3195;
+	uint8_t		n3101;
+	uint8_t		n3103;
+	uint8_t		n3105;
+	uint8_t		cv_countdown;
+	uint16_t	dl_tbf_ext;
+	uint16_t	ul_tbf_ext;
+	uint8_t		initial_cs;
+	uint8_t		initial_mcs;
+	/* NSVC */
+	uint16_t	nsvci[2];
+	uint16_t	local_port[2];
+	uint16_t	remote_port[2];
+	uint32_t	remote_ip[2];
 } __attribute__ ((packed));
 
 struct gsm_pcu_if_act_req {

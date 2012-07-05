@@ -42,6 +42,7 @@
 #include <osmo-bts/bts_model.h>
 
 extern struct gsm_network bts_gsmnet;
+static int avail_lai = 0, avail_nse = 0, avail_cell = 0, avail_nsvc[2] = {0, 0};
 
 static const char *sapi_string[] = {
 	[PCU_IF_SAPI_RACH] =	"RACH",
@@ -70,7 +71,7 @@ static struct gsm_bts_trx *trx_by_nr(struct gsm_bts *bts, uint8_t trx_nr)
 		if (trx->nr == trx_nr)
 			return trx;
 	}
-	
+
 	return NULL;
 }
 
@@ -102,6 +103,8 @@ int pcu_tx_info_ind(void)
 	struct gsm_pcu_if *pcu_prim;
 	struct gsm_pcu_if_info_ind *info_ind;
 	struct gsm_bts *bts;
+	struct gprs_rlc_cfg *rlcc;
+	struct gsm_bts_gprs_nsvc *nsvc;
 	struct gsm_bts_trx *trx;
 	struct gsm_bts_trx_ts *ts;
 	int i, j;
@@ -110,26 +113,87 @@ int pcu_tx_info_ind(void)
 
 	/* FIXME: allow multiple BTS */
 	bts = llist_entry(net->bts_list.next, struct gsm_bts, list);
+	rlcc = &bts->gprs.cell.rlc_cfg;
 
 	msg = pcu_msgb_alloc(PCU_IF_MSG_INFO_IND, bts->nr);
 	if (!msg)
 		return -ENOMEM;
 	pcu_prim = (struct gsm_pcu_if *) msg->data;
 	info_ind = &pcu_prim->u.info_ind;
-	
-#warning check for sysmo bts
-#if 0
-	if (sysmo-bts)
-		info_ind->flags |= PCU_IF_FLAG_SYSMO;
-#endif
-#if 0
-	if (bts->site_mgr.mo.nm_state.operational == NM_OPSTATE_ENABLED) {
+
+	if (avail_lai && avail_nse && avail_cell && avail_nsvc[0]) {
 		info_ind->flags |= PCU_IF_FLAG_ACTIVE;
 		LOGP(DPCU, LOGL_INFO, "BTS is up\n");
 	} else
 		LOGP(DPCU, LOGL_INFO, "BTS is down\n");
-#endif
-	info_ind->flags |= PCU_IF_FLAG_ACTIVE;
+
+	/* RAI */
+	info_ind->mcc = net->mcc;
+	info_ind->mnc = net->mnc;
+	info_ind->lac = bts->location_area_code;
+	info_ind->rac = bts->gprs.rac;
+
+	/* NSE */
+	info_ind->nsei = bts->gprs.nse.nsei;
+	memcpy(info_ind->nse_timer, bts->gprs.nse.timer, 7);
+	memcpy(info_ind->cell_timer, bts->gprs.cell.timer, 11);
+
+	/* cell attributes */
+	info_ind->cell_id = bts->cell_identity;
+	info_ind->repeat_time = rlcc->paging.repeat_time;
+	info_ind->repeat_count = rlcc->paging.repeat_count;
+	info_ind->bvci = bts->gprs.cell.bvci;
+	info_ind->t3142 = rlcc->parameter[RLC_T3142];
+	info_ind->t3169 = rlcc->parameter[RLC_T3169];
+	info_ind->t3191 = rlcc->parameter[RLC_T3191];
+	info_ind->t3193_10ms = rlcc->parameter[RLC_T3193];
+	info_ind->t3195 = rlcc->parameter[RLC_T3195];
+	info_ind->n3101 = rlcc->parameter[RLC_N3101];
+	info_ind->n3103 = rlcc->parameter[RLC_N3103];
+	info_ind->n3105 = rlcc->parameter[RLC_N3105];
+	info_ind->cv_countdown = rlcc->parameter[CV_COUNTDOWN];
+	if (rlcc->cs_mask & (1 << GPRS_CS1))
+		info_ind->flags |= PCU_IF_FLAG_CS1;
+	if (rlcc->cs_mask & (1 << GPRS_CS2))
+		info_ind->flags |= PCU_IF_FLAG_CS2;
+	if (rlcc->cs_mask & (1 << GPRS_CS3))
+		info_ind->flags |= PCU_IF_FLAG_CS3;
+	if (rlcc->cs_mask & (1 << GPRS_CS4))
+		info_ind->flags |= PCU_IF_FLAG_CS4;
+	if (rlcc->cs_mask & (1 << GPRS_MCS1))
+		info_ind->flags |= PCU_IF_FLAG_MCS1;
+	if (rlcc->cs_mask & (1 << GPRS_MCS2))
+		info_ind->flags |= PCU_IF_FLAG_MCS2;
+	if (rlcc->cs_mask & (1 << GPRS_MCS3))
+		info_ind->flags |= PCU_IF_FLAG_MCS3;
+	if (rlcc->cs_mask & (1 << GPRS_MCS4))
+		info_ind->flags |= PCU_IF_FLAG_MCS4;
+	if (rlcc->cs_mask & (1 << GPRS_MCS5))
+		info_ind->flags |= PCU_IF_FLAG_MCS5;
+	if (rlcc->cs_mask & (1 << GPRS_MCS6))
+		info_ind->flags |= PCU_IF_FLAG_MCS6;
+	if (rlcc->cs_mask & (1 << GPRS_MCS7))
+		info_ind->flags |= PCU_IF_FLAG_MCS7;
+	if (rlcc->cs_mask & (1 << GPRS_MCS8))
+		info_ind->flags |= PCU_IF_FLAG_MCS8;
+	if (rlcc->cs_mask & (1 << GPRS_MCS9))
+		info_ind->flags |= PCU_IF_FLAG_MCS9;
+#warning	ist dl_tbf_ext nicht falsch?: * 10 und kein ntohs
+	info_ind->dl_tbf_ext = rlcc->parameter[T_DL_TBF_EXT];
+#warning	ist ul_tbf_ext nicht falsch?: * 10 und kein ntohs
+	info_ind->ul_tbf_ext = rlcc->parameter[T_UL_TBF_EXT];
+	info_ind->initial_cs = rlcc->initial_cs;
+	info_ind->initial_mcs = rlcc->initial_mcs;
+
+	/* NSVC */
+	for (i = 0; i < 2; i++) {
+		nsvc = &bts->gprs.nsvc[i];
+		info_ind->nsvci[i] = nsvc->nsvci;
+		info_ind->local_port[i] = nsvc->local_port;
+		info_ind->remote_port[i] = nsvc->remote_port;
+		info_ind->remote_ip[i] = nsvc->remote_ip;
+	}
+
 	for (i = 0; i < 8; i++) {
 		trx = trx_by_nr(bts, i);
 		if (!trx)
@@ -152,9 +216,68 @@ int pcu_tx_info_ind(void)
 		}
 	}
 
-
 	return pcu_sock_send(net, msg);
 }
+
+static int pcu_if_signal_cb(unsigned int subsys, unsigned int signal,
+	void *hdlr_data, void *signal_data)
+{
+	struct gsm_network *net = &bts_gsmnet;
+	struct gsm_bts_gprs_nsvc *nsvc;
+	struct gsm_bts *bts;
+	struct gsm48_system_information_type_3 *si3;
+	int id;
+
+	if (subsys != SS_GLOBAL)
+		return -EINVAL;
+
+	switch(signal) {
+	case S_NEW_SYSINFO:
+		bts = signal_data;
+		if (!(bts->si_valid & (1 << SYSINFO_TYPE_3)))
+			break;
+		si3 = (struct gsm48_system_information_type_3 *)
+						bts->si_buf[SYSINFO_TYPE_3];
+		net->mcc = ((si3->lai.digits[0] & 0x0f) << 8)
+			| (si3->lai.digits[0] & 0xf0)
+			| (si3->lai.digits[1] & 0x0f);
+		net->mnc = ((si3->lai.digits[2] & 0x0f) << 8)
+			| (si3->lai.digits[2] & 0xf0)
+			| ((si3->lai.digits[1] & 0xf0) >> 4);
+		if ((net->mnc & 0x00f) == 0x00f)
+			net->mnc >>= 4;
+		bts->location_area_code = ntohs(si3->lai.lac);
+		bts->cell_identity = si3->cell_identity;
+		avail_lai = 1;
+		break;
+	case S_NEW_NSE_ATTR:
+		bts = signal_data;
+		avail_nse = 1;
+		break;
+	case S_NEW_CELL_ATTR:
+		bts = signal_data;
+		avail_cell = 1;
+		break;
+	case S_NEW_NSVC_ATTR:
+		nsvc = signal_data;
+		id = nsvc->id;
+		if (id < 0 || id > 1)
+			return -EINVAL;
+		avail_nsvc[id] = 1;
+		break;
+	case S_NEW_OP_STATE:
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* If all infos have been received, of if one info is updated after
+	 * all infos have been received, transmit info update. */
+	if (avail_lai && avail_nse && avail_cell && avail_nsvc[0])
+		pcu_tx_info_ind();
+	return 0;
+}
+
 
 int pcu_tx_rts_req(struct gsm_bts_trx_ts *ts, uint8_t is_ptcch, uint32_t fn,
 	uint16_t arfcn, uint8_t block_nr)
@@ -393,7 +516,7 @@ static int pcu_sock_send(struct gsm_network *net, struct msgb *msg)
 
 	if (!state) {
 		if (pcu_prim->msg_type != PCU_IF_MSG_TIME_IND)
-			LOGP(DPCU, LOGL_NOTICE, "PCU socket not created, "
+			LOGP(DPCU, LOGL_INFO, "PCU socket not created, "
 				"dropping message\n");
 		return -EINVAL;
 	}
@@ -640,6 +763,8 @@ int pcu_sock_init(void)
 		return rc;
 	}
 
+	osmo_signal_register_handler(SS_GLOBAL, pcu_if_signal_cb, NULL);
+
 	bts_gsmnet.pcu_state = state;
 
 	return 0;
@@ -653,6 +778,7 @@ void pcu_sock_exit(void)
 	if (!state)
 		return;
 
+	osmo_signal_unregister_handler(SS_GLOBAL, pcu_if_signal_cb, NULL);
 	conn_bfd = &state->conn_bfd;
 	if (conn_bfd->fd > 0)
 		pcu_sock_close(state);
