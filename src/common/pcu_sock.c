@@ -47,7 +47,7 @@ static int avail_lai = 0, avail_nse = 0, avail_cell = 0, avail_nsvc[2] = {0, 0};
 static const char *sapi_string[] = {
 	[PCU_IF_SAPI_RACH] =	"RACH",
 	[PCU_IF_SAPI_AGCH] =	"AGCH",
-	[PCU_IF_SAPI_PAGCH] =	"PAGCH",
+	[PCU_IF_SAPI_PCH] =	"PCH",
 	[PCU_IF_SAPI_BCCH] =	"BCCH",
 	[PCU_IF_SAPI_PDTCH] =	"PDTCH",
 	[PCU_IF_SAPI_PRACH] =	"PRACH",
@@ -381,7 +381,7 @@ int pcu_tx_time_ind(uint32_t fn)
 	return pcu_sock_send(&bts_gsmnet, msg);
 }
 
-static int pcu_rx_data_req(struct gsm_bts *bts,
+static int pcu_rx_data_req(struct gsm_bts *bts, uint8_t msg_type,
 	struct gsm_pcu_if_data *data_req)
 {
 	uint8_t is_ptcch;
@@ -406,8 +406,16 @@ static int pcu_rx_data_req(struct gsm_bts *bts,
 		}
 		osmo_signal_dispatch(SS_GLOBAL, S_NEW_SYSINFO, bts);
 		break;
-	case PCU_IF_SAPI_PAGCH:
-		rsl_add_paging_cmd(bts->c0, data_req->data, data_req->len);
+	case PCU_IF_SAPI_PCH:
+		if (msg_type == PCU_IF_MSG_PAG_REQ)
+			rsl_add_paging_cmd(bts->c0, data_req->data,
+							data_req->len);
+		else {
+			struct gsm_bts_role_bts *btsb = bts->role;
+
+			paging_add_imm_ass(btsb->paging_state, data_req->data,
+				data_req->len);
+		}
 		break;
 	case PCU_IF_SAPI_AGCH:
 		msg = msgb_alloc(data_req->len, "pcu_agch");
@@ -483,7 +491,8 @@ static int pcu_rx(struct gsm_network *net, uint8_t msg_type,
 
 	switch (msg_type) {
 	case PCU_IF_MSG_DATA_REQ:
-		rc = pcu_rx_data_req(bts, &pcu_prim->u.data_req);
+	case PCU_IF_MSG_PAG_REQ:
+		rc = pcu_rx_data_req(bts, msg_type, &pcu_prim->u.data_req);
 		break;
 	case PCU_IF_MSG_ACT_REQ:
 		rc = pcu_rx_act_req(bts, &pcu_prim->u.act_req);

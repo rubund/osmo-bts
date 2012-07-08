@@ -9,11 +9,12 @@
 #define PCU_IF_MSG_INFO_IND	0x32	/* retrieve BTS info */
 #define PCU_IF_MSG_ACT_REQ	0x40	/* activate/deactivate PDCH */
 #define PCU_IF_MSG_TIME_IND	0x52	/* gsm time indication */
+#define PCU_IF_MSG_PAG_REQ	0x60	/* paging request */
 
 /* sapi */
 #define PCU_IF_SAPI_RACH	0x01	/* channel request on CCCH */
 #define PCU_IF_SAPI_AGCH	0x02	/* assignment on CCCH */
-#define PCU_IF_SAPI_PAGCH	0x03	/* paging request on CCCH */
+#define PCU_IF_SAPI_PCH		0x03	/* paging channel on CCCH */
 #define PCU_IF_SAPI_BCCH	0x04	/* SI on BCCH */
 #define PCU_IF_SAPI_PDTCH	0x05	/* packet data/control/ccch block */
 #define PCU_IF_SAPI_PRACH	0x06	/* packet random access channel */
