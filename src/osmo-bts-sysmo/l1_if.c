@@ -1083,7 +1083,7 @@ static int reset_compl_cb(struct msgb *resp, void *data)
 	/* obtain version information on DSP/FPGA and band capabilities */
 	l1if_get_info(fl1h);
 
-#if SUPERFEMTO_API_VERSION >= SUPERFEMTO_API(2,1,0)
+#if SUPERFEMTO_API_VERSION >= SUPERFEMTO_API(2,4,0)
 	/* load calibration tables (if we know their path) */
 	if (fl1h->calib_path)
 		calib_load(fl1h);
