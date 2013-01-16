@@ -48,6 +48,15 @@ enum sapi_cmd_type {
 	SAPI_CMD_DEACTIVATE,
 };
 
+static const char *sapi_cmd_name[] = {
+	[SAPI_CMD_ACTIVATE]		= "ACTIVATE",
+	[SAPI_CMD_CONFIG_CIPHERING]	= "CIPHERING",
+	[SAPI_CMD_CONFIG_LOGCH_PARAM]	= "LOGCH",
+	[SAPI_CMD_SACCH_REL_MARKER]	= "SACCH MARKER",
+	[SAPI_CMD_REL_MARKER]		= "RELEASE MARKER",
+	[SAPI_CMD_DEACTIVATE]		= "DEACTIVATE",
+};
+
 struct sapi_cmd {
 	struct llist_head entry;
 	GsmL1_Sapi_t sapi;
@@ -476,6 +485,23 @@ static int mph_send_config_logchpar(struct gsm_lchan *lchan, struct sapi_cmd *cm
 static int check_sapi_release(struct gsm_lchan *lchan, int sapi, int dir);
 static int lchan_deactivate_sapis(struct gsm_lchan *lchan);
 
+static void sapi_queue_dump(struct gsm_lchan *lchan)
+{
+	struct sapi_cmd *cmd;
+
+	LOGP(DL1C, LOGL_DEBUG,
+		"%s dumping SAPI queue: (", gsm_lchan_name(lchan));
+
+	llist_for_each_entry(cmd, &lchan->sapi_cmds, entry) {
+		LOGPC(DL1C, LOGL_DEBUG, "%s %s %s,",
+			sapi_cmd_name[cmd->type],
+			get_value_string(femtobts_l1sapi_names, cmd->sapi),
+			get_value_string(femtobts_dir_names, cmd->dir));
+	}
+
+	LOGPC(DL1C, LOGL_DEBUG, ")\n");
+}
+
 /**
  * Execute the first SAPI command of the queue. In case of the markers
  * this method is re-entrant so we need to make sure to remove a command
@@ -489,6 +515,9 @@ static int sapi_queue_exeute(struct gsm_lchan *lchan)
 	struct sapi_cmd *cmd;
 
 	cmd = llist_entry(lchan->sapi_cmds.next, struct sapi_cmd, entry);
+
+	LOGP(DL1C, LOGL_DEBUG, "%s Executing SAPI command %s\n",
+		gsm_lchan_name(lchan), sapi_cmd_name[cmd->type]);
 
 	switch (cmd->type) {
 	case SAPI_CMD_ACTIVATE:
@@ -530,6 +559,7 @@ static int sapi_queue_exeute(struct gsm_lchan *lchan)
 		break;
 	}
 
+	sapi_queue_dump(lchan);
 	return res;
 }
 
@@ -539,6 +569,8 @@ static void sapi_queue_send(struct gsm_lchan *lchan)
 
 	do {
 		res = sapi_queue_exeute(lchan);
+		if (res == 0)
+			printf("%s Next try..\n", gsm_lchan_name(lchan));
 	} while (res == 0 && !llist_empty(&lchan->sapi_cmds));
 }
 
@@ -632,6 +664,7 @@ static int lchan_act_compl_cb(struct gsm_bts_trx *trx, struct msgb *l1_msg)
 				"%s Confirmation mismatch (%d, %d) (%d, %d)\n",
 				gsm_lchan_name(lchan), cmd->sapi, cmd->dir,
 				ic->sapi, ic->dir);
+		abort();
 		goto err;
 	}
 
@@ -874,6 +907,7 @@ static int sapi_activate_cb(struct gsm_lchan *lchan, int status)
 		lchan_set_state(lchan, LCHAN_S_BROKEN);
 		sapi_clear_queue(&lchan->sapi_cmds);
 		rsl_tx_chan_act_nack(lchan, RSL_ERR_EQUIPMENT_FAIL);
+		abort();
 		return -1;
 	}
 
@@ -1259,6 +1293,7 @@ static int lchan_deact_compl_cb(struct gsm_bts_trx *trx, struct msgb *l1_msg)
 				"%s Confirmation mismatch (%d, %d) (%d, %d)\n",
 				gsm_lchan_name(lchan), cmd->sapi, cmd->dir,
 				ic->sapi, ic->dir);
+		abort();
 		goto err;
 	}
 
@@ -1301,6 +1336,7 @@ static int sapi_deactivate_cb(struct gsm_lchan *lchan, int status)
 		lchan_set_state(lchan, LCHAN_S_BROKEN);
 		sapi_clear_queue(&lchan->sapi_cmds);
 		rsl_tx_rf_rel_ack(lchan);
+		abort();
 		return -1;
 	}
 
@@ -1373,6 +1409,7 @@ static int lchan_deactivate_sapis(struct gsm_lchan *lchan)
 			gsm_lchan_name(lchan));
 		lchan_set_state(lchan, LCHAN_S_BROKEN);
 		rsl_tx_rf_rel_ack(lchan);
+		abort();
 	}
 
 	return res;
