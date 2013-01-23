@@ -903,12 +903,15 @@ static int l1if_handle_ind(struct femtol1_hdl *fl1, struct msgb *msg)
 
 static inline int is_prim_compat(GsmL1_Prim_t *l1p, struct wait_l1_conf *wlc)
 {
+	uint32_t id = (uint32_t) wlc->cb_data;
+
 	/* the limitation here is that we cannot have multiple callers
 	 * sending the same primitive */
 	if (wlc->is_sys_prim != 0)
 		return 0;
 	if (l1p->id != wlc->conf_prim_id)
 		return 0;
+#warning "TODO: Check if things are compatible... E.g. by comparing hLayer3"
 	return 1;
 }
 
