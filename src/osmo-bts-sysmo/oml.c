@@ -158,6 +158,15 @@ static void *prim_init(GsmL1_Prim_t *prim, GsmL1_PrimId_t id, struct femtol1_hdl
 	return &prim->u;
 }
 
+/**
+ * Return a value that identifies this primitive. In most cases this would
+ * be hLayer3, the timeslot or a magic value.
+ */
+uint32_t prim_unique_ident(GsmL1_Prim_t *prim)
+{
+	return -1;
+}
+
 GsmL1_Status_t prim_status(GsmL1_Prim_t *prim)
 {
 	/* for some reason the Status field is not always at the same position
