@@ -68,4 +68,5 @@ AC_OUTPUT(
     tests/Makefile
     tests/paging/Makefile
     tests/cipher/Makefile
+    tests/bursts/Makefile
     Makefile)
