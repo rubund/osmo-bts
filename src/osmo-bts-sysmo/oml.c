@@ -34,9 +34,25 @@
 #include <osmo-bts/amr.h>
 #include <osmo-bts/bts.h>
 #include <osmo-bts/bts_model.h>
+#include <osmo-bts/l1sap.h>
 
 #include "l1_if.h"
 #include "femtobts.h"
+
+static int mph_info_chan_confirm(struct gsm_lchan *lchan,
+			enum osmo_mph_info_type type, uint8_t cause)
+{
+	struct osmo_phsap_prim l1sap;
+
+	memset(&l1sap, 0, sizeof(l1sap));
+	osmo_prim_init(&l1sap.oph, SAP_GSM_PH, PRIM_MPH_INFO, PRIM_OP_CONFIRM,
+		NULL);
+	l1sap.u.info.type = type;
+	l1sap.u.info.u.act_cnf.chan_nr = gsm_lchan2chan_nr(lchan);
+	l1sap.u.info.u.act_cnf.cause = cause;
+
+	return l1sap_up(lchan->ts->trx, &l1sap);
+}
 
 static const enum GsmL1_LogChComb_t pchan_to_logChComb[_GSM_PCHAN_MAX] = {
 	[GSM_PCHAN_NONE]		= GsmL1_LogChComb_0,
@@ -446,7 +462,6 @@ static const struct lchan_sapis sapis_for_lchan[_GSM_LCHAN_MAX] = {
 
 static int lchan_act_compl_cb(struct msgb *l1_msg, void *data)
 {
-	struct gsm_time *time;
 	struct gsm_bts_trx *trx = data;
 	struct gsm_lchan *lchan;
 	GsmL1_Prim_t *l1p = msgb_l1prim(l1_msg);
@@ -481,14 +496,13 @@ static int lchan_act_compl_cb(struct msgb *l1_msg, void *data)
 	case GsmL1_Sapi_Sdcch:
 	case GsmL1_Sapi_TchF:
 	case GsmL1_Sapi_TchH:
-		time = bts_model_get_time(lchan->ts->trx->bts);
 		if (lchan->state == LCHAN_S_ACTIVE) {
 			/* Hack: we simply only use one direction to
 			 * avoid sending two ACKs for one activate */
 			if (ic->dir == GsmL1_Dir_TxDownlink)
-				rsl_tx_chan_act_ack(lchan, time);
+				mph_info_chan_confirm(lchan, PRIM_INFO_ACTIVATE, 0);
 		} else
-			rsl_tx_chan_act_nack(lchan, RSL_ERR_EQUIPMENT_FAIL);
+			mph_info_chan_confirm(lchan, PRIM_INFO_ACTIVATE, RSL_ERR_EQUIPMENT_FAIL);
 		break;
 	default:
 		break;
@@ -711,7 +725,6 @@ static int mph_send_activate_req(struct gsm_lchan *lchan, int sapi, int dir)
 
 int lchan_activate(struct gsm_lchan *lchan)
 {
-	struct gsm_bts_role_bts *btsb = lchan->ts->trx->bts->role;
 	struct femtol1_hdl *fl1h = trx_femtol1_hdl(lchan->ts->trx);
 	const struct lchan_sapis *s4l = &sapis_for_lchan[lchan->type];
 	unsigned int i;
@@ -733,8 +746,6 @@ int lchan_activate(struct gsm_lchan *lchan)
 	l1if_set_ciphering(fl1h, lchan, 1);
 
 	lchan_init_lapdm(lchan);
-
-	lchan->s = btsb->radio_link_timeout;
 
 	return 0;
 }
@@ -930,7 +941,7 @@ int l1if_set_ciphering(struct femtol1_hdl *fl1h,
 }
 
 
-int bts_model_rsl_mode_modify(struct gsm_lchan *lchan)
+int l1if_rsl_mode_modify(struct gsm_lchan *lchan)
 {
 	/* channel mode, encryption and/or multirate have changed */
 
@@ -979,7 +990,7 @@ static int lchan_deact_compl_cb(struct msgb *l1_msg, void *data)
 	case GsmL1_Sapi_TchF:
 	case GsmL1_Sapi_TchH:
 		if (ic->dir == GsmL1_Dir_TxDownlink)
-			rsl_tx_rf_rel_ack(lchan);
+			mph_info_chan_confirm(lchan, PRIM_INFO_DEACTIVATE, 0);
 		break;
 	default:
 		break;
@@ -1049,8 +1060,6 @@ static int lchan_deactivate_sacch(struct gsm_lchan *lchan)
 	deact_req->sapi = GsmL1_Sapi_Sacch;
 	deact_req->hLayer3 = l1if_lchan_to_hLayer(lchan);
 
-	lchan->sacch_deact = 1;
-
 	LOGP(DL1C, LOGL_INFO, "%s MPH-DEACTIVATE.req (SACCH %s)\n",
 		gsm_lchan_name(lchan),
 		get_value_string(femtobts_dir_names, deact_req->dir));
@@ -1059,13 +1068,6 @@ static int lchan_deactivate_sacch(struct gsm_lchan *lchan)
 	return l1if_gsm_req_compl(fl1h, msg, lchan_deact_compl_cb, lchan->ts->trx);
 }
 
-
-struct gsm_time *bts_model_get_time(struct gsm_bts *bts)
-{
-	struct femtol1_hdl *fl1h = trx_femtol1_hdl(bts->c0);
-
-	return &fl1h->gsm_time;
-}
 
 /* callback from OML */
 int bts_model_check_oml(struct gsm_bts *bts, uint8_t msg_type,
@@ -1119,17 +1121,16 @@ int bts_model_chg_adm_state(struct gsm_bts *bts, struct gsm_abis_mo *mo,
 	mo->nm_state.administrative = adm_state;
 	return oml_mo_statechg_ack(mo);
 }
-int bts_model_rsl_chan_act(struct gsm_lchan *lchan, struct tlv_parsed *tp)
+int l1if_rsl_chan_act(struct gsm_lchan *lchan)
 {
 	//uint8_t mode = *TLVP_VAL(tp, RSL_IE_CHAN_MODE);
 	//uint8_t type = *TLVP_VAL(tp, RSL_IE_ACT_TYPE);
 
-	lchan->sacch_deact = 0;
 	lchan_activate(lchan);
 	return 0;
 }
 
-int bts_model_rsl_chan_rel(struct gsm_lchan *lchan)
+int l1if_rsl_chan_rel(struct gsm_lchan *lchan)
 {
 	/* A duplicate RF Release Request, ignore it */
 	if (lchan->state == LCHAN_S_REL_REQ)
@@ -1138,7 +1139,7 @@ int bts_model_rsl_chan_rel(struct gsm_lchan *lchan)
 	return 0;
 }
 
-int bts_model_rsl_deact_sacch(struct gsm_lchan *lchan)
+int l1if_rsl_deact_sacch(struct gsm_lchan *lchan)
 {
 	return lchan_deactivate_sacch(lchan);
 }

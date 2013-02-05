@@ -36,6 +36,8 @@
 #include <osmocom/core/application.h>
 #include <osmocom/vty/telnet_interface.h>
 #include <osmocom/vty/logging.h>
+#include <osmocom/core/gsmtap_util.h>
+#include <osmocom/core/gsmtap.h>
 
 #include <osmo-bts/gsm_data.h>
 #include <osmo-bts/logging.h>
@@ -44,6 +46,7 @@
 #include <osmo-bts/vty.h>
 #include <osmo-bts/bts_model.h>
 #include <osmo-bts/pcu_if.h>
+#include <osmo-bts/l1sap.h>
 
 #define SYSMOBTS_RF_LOCK_PATH	"/var/lock/bts_rf_lock"
 
@@ -56,6 +59,7 @@ int pcu_direct = 0;
 static const char *config_file = "osmo-bts.cfg";
 static int daemonize = 0;
 static unsigned int dsp_trace = 0x71c00020;
+static char *gsmtap_ip = 0;
 
 int bts_model_init(struct gsm_bts *bts)
 {
@@ -111,6 +115,7 @@ static void print_help()
 		"  -w	--hw-version	Print the targeted HW Version\n"
 		"  -M	--pcu-direct	Force PCU to access message queue for "
 			"PDCH dchannel directly\n"
+		"  -i --gsmtap-ip	The destination IP used for GSMTAP.\n"
 		);
 }
 
@@ -141,10 +146,11 @@ static void handle_options(int argc, char **argv)
 			{ "dsp-trace", 1, 0, 'p' },
 			{ "hw-version", 0, 0, 'w' },
 			{ "pcu-direct", 0, 0, 'M' },
+			{ "gsmtap-ip", 1, 0, 'i' },
 			{ 0, 0, 0, 0 }
 		};
 
-		c = getopt_long(argc, argv, "hc:d:Dc:sTVe:p:w:M",
+		c = getopt_long(argc, argv, "hc:d:Dc:sTVe:p:w:Mi:",
 				long_options, &option_idx);
 		if (c == -1)
 			break;
@@ -185,6 +191,9 @@ static void handle_options(int argc, char **argv)
 		case 'w':
 			print_hwversion();
 			exit(0);
+			break;
+		case 'i':
+			gsmtap_ip = optarg;
 			break;
 		default:
 			break;
@@ -246,18 +255,28 @@ int main(int argc, char **argv)
 
 	bts_log_init(NULL);
 
-	vty_init(&bts_vty_info);
-	bts_vty_init(&bts_log_info);
-
-	handle_options(argc, argv);
-
 	bts = gsm_bts_alloc(tall_bts_ctx);
+
+	vty_init(&bts_vty_info);
+	bts_vty_init(bts, &bts_log_info);
+
 	if (bts_init(bts) < 0) {
 		fprintf(stderr, "unable to to open bts\n");
 		exit(1);
 	}
 	btsb = bts_role_bts(bts);
 	btsb->support.ciphers = CIPHER_A5(1) | CIPHER_A5(2) | CIPHER_A5(3);
+
+	handle_options(argc, argv);
+
+        if (gsmtap_ip) {
+		gsmtap = gsmtap_source_init(gsmtap_ip, GSMTAP_UDP_PORT, 1);
+		if (!gsmtap) {
+			fprintf(stderr, "Failed during gsmtap_init()\n");
+			exit(1);
+		}
+		gsmtap_source_add_sink(gsmtap);
+	}
 
 	rc = vty_read_config_file(config_file, NULL);
 	if (rc < 0) {

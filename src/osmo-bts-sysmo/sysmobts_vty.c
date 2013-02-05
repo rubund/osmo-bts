@@ -57,34 +57,6 @@ static struct gsm_bts *vty_bts;
 
 /* configuration */
 
-DEFUN(cfg_trx_gsmtap_sapi, cfg_trx_gsmtap_sapi_cmd,
-	"HIDDEN", "HIDDEN")
-{
-	struct gsm_bts_trx *trx = vty->index;
-	struct femtol1_hdl *fl1h = trx_femtol1_hdl(trx);
-	int sapi;
-
-	sapi = get_string_value(femtobts_l1sapi_names, argv[0]);
-
-	fl1h->gsmtap_sapi_mask |= (1 << sapi);
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(cfg_trx_no_gsmtap_sapi, cfg_trx_no_gsmtap_sapi_cmd,
-	"HIDDEN", "HIDDEN")
-{
-	struct gsm_bts_trx *trx = vty->index;
-	struct femtol1_hdl *fl1h = trx_femtol1_hdl(trx);
-	int sapi;
-
-	sapi = get_string_value(femtobts_l1sapi_names, argv[0]);
-
-	fl1h->gsmtap_sapi_mask &= ~(1 << sapi);
-
-	return CMD_SUCCESS;
-}
-
 DEFUN(cfg_trx_clkcal_def, cfg_trx_clkcal_def_cmd,
 	"clock-calibration default",
 	"Set the clock calibration value\n" "Default Clock DAC value\n")
@@ -345,80 +317,14 @@ DEFUN(set_tx_power, set_tx_power_cmd,
 	return CMD_SUCCESS;
 }
 
-DEFUN(loopback, loopback_cmd,
-	"trx <0-0> <0-7> loopback <0-1>",
-	TRX_STR
-	"Timeslot number\n"
-	"Set TCH loopback\n"
-	"Logical Channel Number\n")
-{
-	int trx_nr = atoi(argv[0]);
-	int ts_nr = atoi(argv[1]);
-	int lchan_nr = atoi(argv[2]);
-	struct gsm_bts_trx *trx = gsm_bts_trx_num(vty_bts, trx_nr);
-	struct gsm_bts_trx_ts *ts = &trx->ts[ts_nr];
-	struct gsm_lchan *lchan = &ts->lchan[lchan_nr];
-
-	lchan->loopback = 1;
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(no_loopback, no_loopback_cmd,
-	"no trx <0-0> <0-7> loopback <0-1>",
-	NO_STR TRX_STR
-	"Timeslot number\n"
-	"Set TCH loopback\n"
-	"Logical Channel Number\n")
-{
-	int trx_nr = atoi(argv[0]);
-	int ts_nr = atoi(argv[1]);
-	int lchan_nr = atoi(argv[2]);
-	struct gsm_bts_trx *trx = gsm_bts_trx_num(vty_bts, trx_nr);
-	struct gsm_bts_trx_ts *ts = &trx->ts[ts_nr];
-	struct gsm_lchan *lchan = &ts->lchan[lchan_nr];
-
-	lchan->loopback = 0;
-
-	return CMD_SUCCESS;
-}
-
 
 void bts_model_config_write_bts(struct vty *vty, struct gsm_bts *bts)
 {
 }
 
-/* FIXME: move to libosmocore ? */
-static char buf_casecnvt[256];
-char *osmo_str_tolower(const char *in)
-{
-	int len, i;
-
-	if (!in)
-		return NULL;
-
-	len = strlen(in);
-	if (len > sizeof(buf_casecnvt))
-		len = sizeof(buf_casecnvt);
-
-	for (i = 0; i < len; i++) {
-		buf_casecnvt[i] = tolower(in[i]);
-		if (in[i] == '\0')
-			break;
-	}
-	if (i < sizeof(buf_casecnvt))
-		buf_casecnvt[i] = '\0';
-
-	/* just to make sure we're always zero-terminated */
-	buf_casecnvt[sizeof(buf_casecnvt)-1] = '\0';
-
-	return buf_casecnvt;
-}
-
 void bts_model_config_write_trx(struct vty *vty, struct gsm_bts_trx *trx)
 {
 	struct femtol1_hdl *fl1h = trx_femtol1_hdl(trx);
-	int i;
 
 	vty_out(vty, "  clock-calibration %d%s", fl1h->clk_cal,
 			VTY_NEWLINE);
@@ -429,14 +335,6 @@ void bts_model_config_write_trx(struct vty *vty, struct gsm_bts_trx *trx)
 		VTY_NEWLINE);
 	vty_out(vty, "  uplink-power-target %d%s", fl1h->ul_power_target,
 		VTY_NEWLINE);
-
-	for (i = 0; i < 32; i++) {
-		if (fl1h->gsmtap_sapi_mask & (1 << i)) {
-			const char *name = get_value_string(femtobts_l1sapi_names, i);
-			vty_out(vty, "  gsmtap-sapi %s%s", osmo_str_tolower(name),
-				VTY_NEWLINE);
-		}
-	}
 }
 
 int bts_model_vty_init(struct gsm_bts *bts)
@@ -458,20 +356,6 @@ int bts_model_vty_init(struct gsm_bts *bts)
 						NO_STR TRX_STR DSP_TRACE_F_STR,
 						"\n", "", 0);
 
-	cfg_trx_gsmtap_sapi_cmd.string = vty_cmd_string_from_valstr(bts, femtobts_l1sapi_names,
-						"gsmtap-sapi (",
-						"|",")", VTY_DO_LOWER);
-	cfg_trx_gsmtap_sapi_cmd.doc = vty_cmd_string_from_valstr(bts, femtobts_l1sapi_names,
-						"GSMTAP SAPI\n",
-						"\n", "", 0);
-
-	cfg_trx_no_gsmtap_sapi_cmd.string = vty_cmd_string_from_valstr(bts, femtobts_l1sapi_names,
-						"no gsmtap-sapi (",
-						"|",")", VTY_DO_LOWER);
-	cfg_trx_no_gsmtap_sapi_cmd.doc = vty_cmd_string_from_valstr(bts, femtobts_l1sapi_names,
-						NO_STR "GSMTAP SAPI\n",
-						"\n", "", 0);
-
 	install_element_ve(&show_dsp_trace_f_cmd);
 	install_element_ve(&show_sys_info_cmd);
 	install_element_ve(&show_trx_clksrc_cmd);
@@ -481,15 +365,10 @@ int bts_model_vty_init(struct gsm_bts *bts)
 	install_element(ENABLE_NODE, &activate_lchan_cmd);
 	install_element(ENABLE_NODE, &set_tx_power_cmd);
 
-	install_element(ENABLE_NODE, &loopback_cmd);
-	install_element(ENABLE_NODE, &no_loopback_cmd);
-
 	install_element(TRX_NODE, &cfg_trx_clkcal_cmd);
 	install_element(TRX_NODE, &cfg_trx_clkcal_def_cmd);
 	install_element(TRX_NODE, &cfg_trx_clksrc_cmd);
 	install_element(TRX_NODE, &cfg_trx_cal_path_cmd);
-	install_element(TRX_NODE, &cfg_trx_gsmtap_sapi_cmd);
-	install_element(TRX_NODE, &cfg_trx_no_gsmtap_sapi_cmd);
 	install_element(TRX_NODE, &cfg_trx_ul_power_target_cmd);
 
 	return 0;
