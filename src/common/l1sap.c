@@ -915,8 +915,7 @@ int l1sap_chan_deact_sacch(struct gsm_bts_trx *trx, uint8_t chan_nr)
 
 	lchan->sacch_deact = 1;
 
-	return l1sap_chan_act_dact_modify(trx, chan_nr, PRIM_INFO_DEACTIVATE,
-		1);
+	return 0;
 }
 
 int l1sap_chan_modify(struct gsm_bts_trx *trx, uint8_t chan_nr)
