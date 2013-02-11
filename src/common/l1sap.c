@@ -418,11 +418,11 @@ static int l1sap_ph_rts_ind(struct gsm_bts_trx *trx,
 			memcpy(p, fill_frame, GSM_MACBLOCK_LEN);
 	} else if (!(chan_nr & 0x80)) { /* only TCH/F, TCH/H, SDCCH/4 and SDCCH/8 have C5 bit cleared */
 		if (L1SAP_IS_CHAN_TCHH(chan_nr))
-			ss = L1SAP_CHAN2SS_TCHH(rts_ind->chan_nr); /* TCH/H */
+			ss = L1SAP_CHAN2SS_TCHH(chan_nr); /* TCH/H */
 		else if (L1SAP_IS_CHAN_SDCCH4(chan_nr))
-			ss = L1SAP_CHAN2SS_SDCCH4(rts_ind->chan_nr); /* SDCCH/4 */
+			ss = L1SAP_CHAN2SS_SDCCH4(chan_nr); /* SDCCH/4 */
 		else if (L1SAP_IS_CHAN_SDCCH8(chan_nr))
-			ss = L1SAP_CHAN2SS_SDCCH8(rts_ind->chan_nr); /* SDCCH/8 */
+			ss = L1SAP_CHAN2SS_SDCCH8(chan_nr); /* SDCCH/8 */
 		else
 			ss = 0; /* TCH/F */
 		lchan = &trx->ts[tn].lchan[ss];
@@ -753,7 +753,8 @@ static int l1sap_ph_rach_ind(struct gsm_bts_trx *trx,
 		return 0;
 	}
 
-	LOGP(DL1P, LOGL_INFO, "RACH for RR access\n");
+	LOGP(DL1P, LOGL_INFO, "RACH for RR access (toa=%d, ra=%d)\n",
+		rach_ind->acc_delay, rach_ind->ra);
 	lapdm_phsap_up(&l1sap->oph, &lc->lapdm_dcch);
 
 	return 0;
