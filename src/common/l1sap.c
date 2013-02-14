@@ -444,9 +444,10 @@ static int l1sap_ph_rts_ind(struct gsm_bts_trx *trx,
 					memcpy(p + 2, si, GSM_MACBLOCK_LEN - 2);
 				} else
 					memcpy(p + 2, fill_frame, GSM_MACBLOCK_LEN - 2);
-			} else if (!L1SAP_IS_CHAN_TCHF(chan_nr) && !L1SAP_IS_CHAN_TCHH(chan_nr)) {
+			} else if ((!L1SAP_IS_CHAN_TCHF(chan_nr) && !L1SAP_IS_CHAN_TCHH(chan_nr))
+				|| lchan->rsl_cmode == RSL_CMOD_SPD_SIGN) {
+				/* send fill frame only, if not TCH/x != Signalling, otherwise send empty frame */
 				p = msgb_put(msg, GSM_MACBLOCK_LEN);
-				/* send fill frame only, if not TCH/x, otherwise send empty frame */
 				memcpy(p, fill_frame, GSM_MACBLOCK_LEN);
 			}
 		} else {
