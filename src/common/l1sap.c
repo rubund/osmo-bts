@@ -835,7 +835,8 @@ int l1sap_pdch_req(struct gsm_bts_trx_ts *ts, int is_ptcch, uint32_t fn,
 	l1sap->u.data.chan_nr = 0x08 | ts->nr;
 	l1sap->u.data.link_id = 0x00;
 	l1sap->u.data.fn = fn;
-	memcpy(msgb_put(msg, len), data, len);
+	msg->l2h = msgb_put(msg, len);
+	memcpy(msg->l2h, data, len);
 
 	return l1sap_down(ts->trx, l1sap);
 }
