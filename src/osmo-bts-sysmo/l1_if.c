@@ -287,7 +287,7 @@ int bts_model_l1sap_down(struct gsm_bts_trx *trx, struct osmo_phsap_prim *l1sap)
 		} else if (L1SAP_IS_CHAN_TCHH(chan_nr)) {
 			subCh = L1SAP_CHAN2SS_TCHH(chan_nr);
 			sapi = GsmL1_Sapi_FacchH;
-			u8BlockNbr = (u32Fn % 13) >> 2;
+			u8BlockNbr = (u32Fn % 26) >> 3;
 		} else if (L1SAP_IS_CHAN_SDCCH4(chan_nr)) {
 			subCh = L1SAP_CHAN2SS_SDCCH4(chan_nr);
 			sapi = GsmL1_Sapi_Sdcch;
