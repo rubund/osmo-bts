@@ -221,8 +221,6 @@ static void config_write_bts_single(struct vty *vty, struct gsm_bts *bts)
 		VTY_NEWLINE);
 	vty_out(vty, " paging lifetime %u%s", paging_get_lifetime(btsb->paging_state),
 		VTY_NEWLINE);
-	vty_out(vty, " radio-link-timeout %u%s", btsb->radio_link_timeout,
-		VTY_NEWLINE);
 
 	for (i = 0; i < 32; i++) {
 		if (gsmtap_sapi_mask & (1 << i)) {
@@ -402,20 +400,6 @@ DEFUN(cfg_bts_paging_lifetime,
 	struct gsm_bts_role_bts *btsb = bts_role_bts(bts);
 
 	paging_set_lifetime(btsb->paging_state, atoi(argv[0]));
-
-	return CMD_SUCCESS;
-}
-
-DEFUN(cfg_bts_radio_link_timeout,
-	cfg_bts_radio_link_timeout_cmd,
-	"radio-link-timeout <4-64>",
-	"Radio link timeout criterion (BTS side)\n"
-	"Radio link timeout value (lost SACCH block)\n")
-{
-	struct gsm_bts *bts = vty->index;
-	struct gsm_bts_role_bts *btsb = bts_role_bts(bts);
-
-	btsb->radio_link_timeout = atoi(argv[0]);
 
 	return CMD_SUCCESS;
 }
@@ -664,7 +648,6 @@ int bts_vty_init(struct gsm_bts *bts, const struct log_info *cat)
 	install_element(BTS_NODE, &cfg_no_description_cmd);
 	install_element(BTS_NODE, &cfg_bts_paging_queue_size_cmd);
 	install_element(BTS_NODE, &cfg_bts_paging_lifetime_cmd);
-	install_element(BTS_NODE, &cfg_bts_radio_link_timeout_cmd);
 
 	install_element(BTS_NODE, &cfg_trx_gsmtap_sapi_cmd);
 	install_element(BTS_NODE, &cfg_trx_no_gsmtap_sapi_cmd);
