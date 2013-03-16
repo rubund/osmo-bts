@@ -163,7 +163,7 @@ static int to_gsmtap(struct gsm_bts_trx *trx, struct osmo_phsap_prim *l1sap)
 		if (L1SAP_IS_CHAN_TCHF(chan_nr)) {
 			if (trx->ts[tn].pchan == GSM_PCHAN_PDCH) {
 				if (L1SAP_IS_PTCCH(fn)) {
-					chan_type = GSMTAP_CHANNEL_PACCH;
+					chan_type = GSMTAP_CHANNEL_PTCCH;
 					ss = L1SAP_FN2PTCCHBLOCK(fn);
 					if (l1sap->oph.primitive
 							== PRIM_OP_INDICATION) {
@@ -173,7 +173,7 @@ static int to_gsmtap(struct gsm_bts_trx *trx, struct osmo_phsap_prim *l1sap)
 						len--;
 					}
 				} else {
-					chan_type = GSMTAP_CHANNEL_PTCCH;
+					chan_type = GSMTAP_CHANNEL_PACCH;
 				}
 			} else
 				chan_type = GSMTAP_CHANNEL_TCH_F;
