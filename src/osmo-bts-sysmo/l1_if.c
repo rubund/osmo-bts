@@ -56,10 +56,8 @@
 
 extern int pcu_direct;
 
-/* FIXME: make threshold configurable */
-#define MIN_QUAL_RACH	 5.0f	/* at least  5 dB C/I */
-#define MIN_QUAL_NORM	-0.5f	/* at least -1 dB C/I */
-
+#define MIN_QUAL_RACH   5.0f   /* at least  5 dB C/I */
+#define MIN_QUAL_NORM  -0.5f   /* at least -1 dB C/I */
 
 struct wait_l1_conf {
 	struct llist_head list;		/* internal linked list */
@@ -727,7 +725,7 @@ static int handle_ph_data_ind(struct femtol1_hdl *fl1, struct msgb *msg,
 	/* uplink measurement */
 	process_meas_res(trx, chan_nr, &data_ind->measParam);
 
-	if (data_ind->measParam.fLinkQuality < MIN_QUAL_NORM
+	if (data_ind->measParam.fLinkQuality < fl1->min_qual_norm
 	 && data_ind->msgUnitParam.u8Size != 0) {
 		msgb_free(msg);
 		return 0;
@@ -791,14 +789,14 @@ static int handle_ph_ra_ind(struct femtol1_hdl *fl1, struct msgb *msg,
 
 	dump_meas_res(LOGL_DEBUG, &ra_ind->measParam);
 
-	if (ra_ind->measParam.fLinkQuality < MIN_QUAL_RACH) {
+	if (ra_ind->measParam.fLinkQuality < fl1->min_qual_rach) {
 		msgb_free(msg);
 		return 0;
 	}
 
 	if (ra_ind->msgUnitParam.u8Size != 1) {
-		LOGP(DL1C, LOGL_ERROR, "PH-RACH-INDICATION has %d bits\n",
-			ra_ind->sapi);
+		LOGP(DL1C, LOGL_NOTICE, "PH-RACH-INDICATION has %d bytes\n",
+			ra_ind->msgUnitParam.u8Size);
 		msgb_free(msg);
 		return 0;
 	}
@@ -1166,6 +1164,8 @@ struct femtol1_hdl *l1if_open(void *priv)
 	fl1h->priv = priv;
 	fl1h->clk_cal = 0;
 	fl1h->ul_power_target = -75;	/* dBm default */
+	fl1h->min_qual_rach = MIN_QUAL_RACH;
+	fl1h->min_qual_norm = MIN_QUAL_NORM;
 	/* default clock source: OCXO */
 #if SUPERFEMTO_API_VERSION >= SUPERFEMTO_API(2,1,0)
 	fl1h->clk_src = SuperFemto_ClkSrcId_Ocxo;
