@@ -750,7 +750,7 @@ static int l1sap_ph_rach_ind(struct gsm_bts_trx *trx,
 	if (trx == bts->c0
 	 && L1SAP_IS_PACKET_RACH(rach_ind->ra)) {
 		LOGP(DL1P, LOGL_INFO, "RACH for packet access\n");
-		pcu_tx_rach_ind(bts, rach_ind->acc_delay,
+		pcu_tx_rach_ind(bts, rach_ind->acc_delay << 2,
 			rach_ind->ra, rach_ind->fn);
 
 		return 0;
