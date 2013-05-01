@@ -89,30 +89,30 @@ osmo_static_assert(sizeof(GsmL1_Prim_t) + 128 <= SYSMOBTS_PRIM_SIZE, l1_prim)
 osmo_static_assert(sizeof(SuperFemto_Prim_t) + 128 <= SYSMOBTS_PRIM_SIZE, super_prim)
 
 /* callback when there's something to read from the l1 msg_queue */
-static int l1if_fd_cb(struct osmo_fd *ofd, unsigned int what)
+static int read_dispatch_one(struct femtol1_hdl *fl1h, int fd, int queue)
 {
 	//struct msgb *msg = l1p_msgb_alloc();
 	struct msgb *msg = msgb_alloc_headroom(SYSMOBTS_PRIM_SIZE, 128, "1l_fd");
-	struct femtol1_hdl *fl1h = ofd->data;
 	int rc;
 
 	msg->l1h = msg->data;
-	rc = read(ofd->fd, msg->l1h, msgb_tailroom(msg));
+	rc = read(fd, msg->l1h, msgb_tailroom(msg));
 	if (rc < 0) {
-		if (rc != -1) 
+		if (rc != -1 && rc != EAGAIN)
 			LOGP(DL1C, LOGL_ERROR, "error reading from L1 msg_queue: %s\n",
 				strerror(errno));
 		msgb_free(msg);
-		return rc;
+		return 0;
 	}
 	msgb_put(msg, rc);
 
-	switch (ofd->priv_nr) {
+	switch (queue) {
 	case MQ_SYS_WRITE:
 		if (rc != sizeof(SuperFemto_Prim_t))
 			LOGP(DL1C, LOGL_NOTICE, "%u != "
 			     "sizeof(SuperFemto_Prim_t)\n", rc);
-		return l1if_handle_sysprim(fl1h, msg);
+		l1if_handle_sysprim(fl1h, msg);
+		return 1;
 	case MQ_L1_WRITE:
 #ifndef HW_SYSMOBTS_V1
 	case MQ_TCH_WRITE:
@@ -121,15 +121,36 @@ static int l1if_fd_cb(struct osmo_fd *ofd, unsigned int what)
 		if (rc != sizeof(GsmL1_Prim_t))
 			LOGP(DL1C, LOGL_NOTICE, "%u != "
 			     "sizeof(GsmL1_Prim_t)\n", rc);
-		return l1if_handle_l1prim(ofd->priv_nr, fl1h, msg);
+		l1if_handle_l1prim(queue, fl1h, msg);
+		return 1;
 	default:
 		/* The compiler can't know that priv_nr is an enum. Assist. */
 		LOGP(DL1C, LOGL_FATAL, "writing on a wrong queue: %d\n",
-			ofd->priv_nr);
+			queue);
 		assert(false);
 		break;
 	}
 };
+
+static int l1if_fd_cb(struct osmo_fd *ofd, unsigned int what)
+{
+	int count = 0;
+	int rc;
+
+	/**
+	 * There are likely several messages ready to be read from
+	 * the DSP->ARM queue. We want to avoid going through the
+	 * select to read the second message. On the other hand we
+	 * need to make sure to be fair to other fd's and limit the
+	 * number of messages we read to three (3).
+	 */
+	do {
+		rc = read_dispatch_one(ofd->data, ofd->fd, ofd->priv_nr);
+		count += 1;
+	} while (rc != 0 && count <= 3);
+
+	return 1;
+}
 
 /* callback when we can write to one of the l1 msg_queue devices */
 static int l1fd_write_cb(struct osmo_fd *ofd, struct msgb *msg)
