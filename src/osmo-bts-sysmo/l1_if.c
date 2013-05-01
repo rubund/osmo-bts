@@ -413,6 +413,11 @@ static int handle_ph_readytosend_ind(struct femtol1_hdl *fl1,
 		}
 		/* get a msgb from the dl_tx_queue */
 		resp_msg = msgb_dequeue(&lchan->dl_tch_queue);
+
+		/* we have nothing to transfer yet */
+		if (!resp_msg && lchan->tch_mode == GSM48_CMODE_SIGN)
+			break;
+
 		/* if there is none, try to generate empty TCH frame
 		 * like AMR SID_BAD */
 		if (!resp_msg) {
