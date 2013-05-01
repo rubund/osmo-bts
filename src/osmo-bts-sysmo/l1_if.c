@@ -1116,6 +1116,7 @@ static int info_compl_cb(struct gsm_bts_trx *trx, struct msgb *resp)
 		LOGP(DL1C, LOGL_FATAL, "BTS band %s not supported by hw\n",
 		     gsm_band_name(trx->bts->band));
 
+	msgb_free(resp);
 	/* FIXME: clock related */
 	return 0;
 }

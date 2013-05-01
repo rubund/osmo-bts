@@ -232,6 +232,8 @@ static int calib_send_compl_cb(struct gsm_bts_trx *trx, struct msgb *l1_msg)
 	LOGP(DL1C, LOGL_DEBUG, "L1 calibration table %s loaded\n",
 		calib_files[st->last_file_idx].fname);
 
+	msgb_free(l1_msg);
+
 	st->last_file_idx++;
 
 	if (st->last_file_idx < ARRAY_SIZE(calib_files))
