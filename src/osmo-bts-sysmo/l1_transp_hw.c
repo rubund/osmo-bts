@@ -88,6 +88,13 @@ static const char *wr_devnames[] = {
 osmo_static_assert(sizeof(GsmL1_Prim_t) + 128 <= SYSMOBTS_PRIM_SIZE, l1_prim)
 osmo_static_assert(sizeof(SuperFemto_Prim_t) + 128 <= SYSMOBTS_PRIM_SIZE, super_prim)
 
+static int prim_size_for_queue(int queue)
+{
+	if (queue == MQ_SYS_WRITE)
+		return sizeof(SuperFemto_Prim_t);
+	return sizeof(GsmL1_Prim_t);
+}
+
 /* callback when there's something to read from the l1 msg_queue */
 static int read_dispatch_one(struct femtol1_hdl *fl1h, struct msgb *msg, int queue)
 {
@@ -119,34 +126,36 @@ static int read_dispatch_one(struct femtol1_hdl *fl1h, struct msgb *msg, int que
 
 static int l1if_fd_cb(struct osmo_fd *ofd, unsigned int what)
 {
-	int count = 0;
-	int rc;
+	int i, rc;
 
-	/**
-	 * There are likely several messages ready to be read from
-	 * the DSP->ARM queue. We want to avoid going through the
-	 * select to read the second message. On the other hand we
-	 * need to make sure to be fair to other fd's and limit the
-	 * number of messages we read to three (3).
-	 */
-	do {
-		struct msgb *msg;
-		msg = msgb_alloc_headroom(SYSMOBTS_PRIM_SIZE, 128, "1l_fd");
+	const uint32_t prim_size = prim_size_for_queue(ofd->priv_nr);
+	uint32_t count;
 
-		msg->l1h = msg->data;
-		rc = read(ofd->fd, msg->l1h, msgb_tailroom(msg));
-		if (rc < 0) {
-			if (rc != -1 && rc != EAGAIN)
-				LOGP(DL1C, LOGL_ERROR, "error reading from L1 msg_queue: %s\n",
-					strerror(errno));
-			msgb_free(msg);
-			return 0;
-		}
-		msgb_put(msg, rc);
+	struct iovec iov[3];
+	struct msgb *msg[ARRAY_SIZE(iov)];
 
-		rc = read_dispatch_one(ofd->data, msg, ofd->priv_nr);
-		count += 1;
-	} while (rc != 0 && count <= 3);
+	for (i = 0; i < ARRAY_SIZE(iov); ++i) {
+		msg[i] = msgb_alloc_headroom(prim_size + 128, 128, "1l_fd");
+		msg[i]->l1h = msg[i]->data;
+
+		iov[i].iov_base = msg[i]->l1h;
+		iov[i].iov_len = msgb_tailroom(msg[i]);
+	}
+
+
+	rc = readv(ofd->fd, iov, ARRAY_SIZE(iov));
+	count = rc / prim_size;
+
+//	if (count > 1)
+//		printf("READ %d\n", count);
+
+	for (i = 0; i < count; ++i) {
+		msgb_put(msg[i], prim_size);
+		rc = read_dispatch_one(ofd->data, msg[i], ofd->priv_nr);
+	}
+
+	for (i = count; i < ARRAY_SIZE(iov); ++i)
+		msgb_free(msg[i]);
 
 	return 1;
 }
