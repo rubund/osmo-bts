@@ -89,28 +89,13 @@ osmo_static_assert(sizeof(GsmL1_Prim_t) + 128 <= SYSMOBTS_PRIM_SIZE, l1_prim)
 osmo_static_assert(sizeof(SuperFemto_Prim_t) + 128 <= SYSMOBTS_PRIM_SIZE, super_prim)
 
 /* callback when there's something to read from the l1 msg_queue */
-static int read_dispatch_one(struct femtol1_hdl *fl1h, int fd, int queue)
+static int read_dispatch_one(struct femtol1_hdl *fl1h, struct msgb *msg, int queue)
 {
-	//struct msgb *msg = l1p_msgb_alloc();
-	struct msgb *msg = msgb_alloc_headroom(SYSMOBTS_PRIM_SIZE, 128, "1l_fd");
-	int rc;
-
-	msg->l1h = msg->data;
-	rc = read(fd, msg->l1h, msgb_tailroom(msg));
-	if (rc < 0) {
-		if (rc != -1 && rc != EAGAIN)
-			LOGP(DL1C, LOGL_ERROR, "error reading from L1 msg_queue: %s\n",
-				strerror(errno));
-		msgb_free(msg);
-		return 0;
-	}
-	msgb_put(msg, rc);
-
 	switch (queue) {
 	case MQ_SYS_WRITE:
-		if (rc != sizeof(SuperFemto_Prim_t))
-			LOGP(DL1C, LOGL_NOTICE, "%u != "
-			     "sizeof(SuperFemto_Prim_t)\n", rc);
+		if (msgb_l1len(msg) != sizeof(SuperFemto_Prim_t))
+			LOGP(DL1C, LOGL_FATAL, "%u != "
+			     "sizeof(SuperFemto_Prim_t)\n", msgb_l1len(msg));
 		l1if_handle_sysprim(fl1h, msg);
 		return 1;
 	case MQ_L1_WRITE:
@@ -118,9 +103,9 @@ static int read_dispatch_one(struct femtol1_hdl *fl1h, int fd, int queue)
 	case MQ_TCH_WRITE:
 	case MQ_PDTCH_WRITE:
 #endif
-		if (rc != sizeof(GsmL1_Prim_t))
-			LOGP(DL1C, LOGL_NOTICE, "%u != "
-			     "sizeof(GsmL1_Prim_t)\n", rc);
+		if (msgb_l1len(msg) != sizeof(GsmL1_Prim_t))
+			LOGP(DL1C, LOGL_FATAL, "%u != "
+			     "sizeof(GsmL1_Prim_t)\n", msgb_l1len(msg));
 		l1if_handle_l1prim(queue, fl1h, msg);
 		return 1;
 	default:
@@ -145,7 +130,21 @@ static int l1if_fd_cb(struct osmo_fd *ofd, unsigned int what)
 	 * number of messages we read to three (3).
 	 */
 	do {
-		rc = read_dispatch_one(ofd->data, ofd->fd, ofd->priv_nr);
+		struct msgb *msg;
+		msg = msgb_alloc_headroom(SYSMOBTS_PRIM_SIZE, 128, "1l_fd");
+
+		msg->l1h = msg->data;
+		rc = read(ofd->fd, msg->l1h, msgb_tailroom(msg));
+		if (rc < 0) {
+			if (rc != -1 && rc != EAGAIN)
+				LOGP(DL1C, LOGL_ERROR, "error reading from L1 msg_queue: %s\n",
+					strerror(errno));
+			msgb_free(msg);
+			return 0;
+		}
+		msgb_put(msg, rc);
+
+		rc = read_dispatch_one(ofd->data, msg, ofd->priv_nr);
 		count += 1;
 	} while (rc != 0 && count <= 3);
 
