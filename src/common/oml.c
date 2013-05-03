@@ -585,6 +585,8 @@ static int conf_lchans_for_pchan(struct gsm_bts_trx_ts *ts)
 	struct gsm_lchan *lchan;
 	unsigned int i;
 
+	/* TODO: ts->lchan[i] = GSM_LCHAN_NONE for all unused chans */
+
 	switch (ts->pchan) {
 	case GSM_PCHAN_CCCH_SDCCH4:
 		for (i = 0; i < 4; i++) {

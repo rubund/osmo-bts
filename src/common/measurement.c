@@ -211,13 +211,18 @@ int ts_meas_check_compute(struct gsm_bts_trx_ts *ts, uint32_t fn)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(ts->lchan); i++) {
+	for (i = 0; i < ARRAY_SIZE(ts->lchan); ++i) {
 		struct gsm_lchan *lchan = &ts->lchan[i];
+		const int type = lchan->type;
+
+		/* All channels after the first _NONE will be NONE */
+		if (type == GSM_LCHAN_NONE)
+			break;
 
 		if (lchan->state != LCHAN_S_ACTIVE)
 			continue;
 
-		switch (lchan->type) {
+		switch (type) {
 		case GSM_LCHAN_SDCCH:
 		case GSM_LCHAN_TCH_F:
 		case GSM_LCHAN_TCH_H:
