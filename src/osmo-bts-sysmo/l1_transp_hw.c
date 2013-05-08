@@ -208,13 +208,12 @@ static int l1if_fd_cb(struct osmo_fd *ofd, unsigned int what)
 	struct msgb *msg[ARRAY_SIZE(iov)];
 
 	for (i = 0; i < ARRAY_SIZE(iov); ++i) {
-		msg[i] = msgb_alloc_headroom(prim_size + 128, 128, "1l_fd");
+		msg[i] = msgb_alloc_headroom(SYSMOBTS_PRIM_SIZE, 128, "1l_fd");
 		msg[i]->l1h = msg[i]->data;
 
 		iov[i].iov_base = msg[i]->l1h;
-		iov[i].iov_len = msgb_tailroom(msg[i]);
+		iov[i].iov_len = prim_size;
 	}
-
 
 	rc = readv(ofd->fd, iov, ARRAY_SIZE(iov));
 	count = rc / prim_size;
