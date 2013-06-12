@@ -501,7 +501,7 @@ int bts_model_l1sap_down(struct gsm_bts_trx *trx, struct osmo_phsap_prim *l1sap)
 					lchan->tch.amr_mr.mode[2].mode,
 					lchan->tch.amr_mr.mode[3].mode,
 					amr_get_initial_mode(lchan),
-					(lchan->ho.active == 1));
+					(lchan->ho.active == HANDOVER_ENABLED));
 				/* init lapdm */
 				lchan_init_lapdm(lchan);
 				/* set lchan active */
