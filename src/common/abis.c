@@ -106,7 +106,8 @@ static void sign_link_down(struct e1inp_line *line)
 		trx_link_estab(g_bts->c0);
 	}
 
-	e1inp_sign_link_destroy(g_bts->oml_link);
+	if (g_bts->oml_link)
+		e1inp_sign_link_destroy(g_bts->oml_link);
 	g_bts->oml_link = NULL;
 
 	bts_shutdown(g_bts, "Abis close");
