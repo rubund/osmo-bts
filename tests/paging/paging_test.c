@@ -47,6 +47,7 @@ static void test_paging_smoke(void)
 	int rc;
 	uint8_t out_buf[GSM_MACBLOCK_LEN];
 	struct gsm_time g_time;
+	int is_empty = -1;
 	printf("Testing that paging messages expire.\n");
 
 	/* add paging entry */
@@ -59,8 +60,9 @@ static void test_paging_smoke(void)
 	g_time.t1 = 0;
 	g_time.t2 = 0;
 	g_time.t3 = 6;
-	rc = paging_gen_msg(btsb->paging_state, out_buf, &g_time);
+	rc = paging_gen_msg(btsb->paging_state, out_buf, &g_time, &is_empty);
 	ASSERT_TRUE(rc == 13);
+	ASSERT_TRUE(!is_empty);
 
 	ASSERT_TRUE(paging_group_queue_empty(btsb->paging_state, 0));
 	ASSERT_TRUE(paging_queue_length(btsb->paging_state) == 0);
@@ -76,6 +78,7 @@ static void test_paging_sleep(void)
 	int rc;
 	uint8_t out_buf[GSM_MACBLOCK_LEN];
 	struct gsm_time g_time;
+	int is_empty = -1;
 	printf("Testing that paging messages expire with sleep.\n");
 
 	/* add paging entry */
@@ -91,8 +94,9 @@ static void test_paging_sleep(void)
 	g_time.t1 = 0;
 	g_time.t2 = 0;
 	g_time.t3 = 6;
-	rc = paging_gen_msg(btsb->paging_state, out_buf, &g_time);
+	rc = paging_gen_msg(btsb->paging_state, out_buf, &g_time, &is_empty);
 	ASSERT_TRUE(rc == 13);
+	ASSERT_TRUE(!is_empty);
 
 	ASSERT_TRUE(paging_group_queue_empty(btsb->paging_state, 0));
 	ASSERT_TRUE(paging_queue_length(btsb->paging_state) == 0);
