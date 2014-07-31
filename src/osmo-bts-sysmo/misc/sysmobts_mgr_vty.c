@@ -117,12 +117,14 @@ DEFUN(show_mgr, show_mgr_cmd, "show manager",
 		vty_out(vty, "Power Status%s", VTY_NEWLINE);
 		vty_out(vty, " Main Supply :(ON)  [(24.00)Vdc, %4.2f A]%s",
 			status.main_supply_current, VTY_NEWLINE);
-		vty_out(vty, " Master SF   : %s  [%6.2f Vdc, %4.2f A]%s",
+		vty_out(vty, " Master SF   : %s%s  [%6.2f Vdc, %4.2f A]%s",
 			status.master_enabled ? "ON " : "OFF",
+			is_sbts2050_trx(0) ? "/us" : "",
 			status.master_voltage, status.master_current,
 			VTY_NEWLINE);
-		vty_out(vty, " Slave SF    : %s  [%6.2f Vdc, %4.2f A]%s",
+		vty_out(vty, " Slave SF    : %s%s  [%6.2f Vdc, %4.2f A]%s",
 			status.slave_enabled ? "ON" : "OFF",
+			is_sbts2050_trx(1) ? "/us" : "",
 			status.slave_voltage, status.slave_current,
 			VTY_NEWLINE);
 		vty_out(vty, " Power Amp   : %s  [%6.2f Vdc, %4.2f A]%s",
