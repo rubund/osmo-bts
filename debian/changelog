@@ -1,0 +1,5 @@
+osmo-bts (0~20150129gitb631bd2-1) unstable; urgency=low
+
+  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Ruben Undheim <ruben.undheim@gmail.com>  Sat, 07 Feb 2015 09:25:56 +0100
